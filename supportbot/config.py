@@ -31,6 +31,7 @@ class Settings:
     min_coverage: float = 0.5        # share of the question's key terms that must appear in the sources
     rate_limit_per_minute: int = 20
     max_question_chars: int = 1000
+    trusted_proxy_hops: int = 0      # set to 1 when deployed behind a reverse proxy (Railway, Render, Nginx)
 
     @property
     def ai_enabled(self) -> bool:
@@ -50,4 +51,5 @@ class Settings:
             allowed_origins=[o.strip() for o in env("ALLOWED_ORIGINS", "*").split(",") if o.strip()],
             knowledge_dir=Path(env("KNOWLEDGE_DIR", "knowledge_base")),
             data_dir=Path(env("DATA_DIR", "data")),
+            trusted_proxy_hops=int(env("TRUSTED_PROXY_HOPS", "0") or 0),
         )

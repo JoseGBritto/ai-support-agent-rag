@@ -51,3 +51,17 @@ def test_widget_demo_and_cors(client):
     assert "widget.js" in client.get("/").get_data(as_text=True)
     r = client.post("/api/chat", json={"message": "shipping"}, headers={"Origin": "https://shop.example"})
     assert r.headers["Access-Control-Allow-Origin"] == "https://shop.example"
+
+
+def test_placeholder_admin_token_keeps_admin_locked(settings, make_agent):
+    settings.admin_token = "change-me"
+    client = create_app(settings, make_agent()).test_client()
+    assert client.get("/api/admin/stats", headers={"Authorization": "Bearer change-me"}).status_code == 401
+
+
+def test_rate_limit_is_per_visitor_behind_a_proxy(settings, make_agent):
+    settings.rate_limit_per_minute, settings.trusted_proxy_hops = 2, 1
+    client = create_app(settings, make_agent()).test_client()
+    send = lambda ip: client.post("/api/chat", json={"message": "shipping"}, headers={"X-Forwarded-For": ip}).status_code
+    assert [send("1.1.1.1"), send("1.1.1.1"), send("1.1.1.1")] == [200, 200, 429]
+    assert send("2.2.2.2") == 200  # another visitor is not blocked

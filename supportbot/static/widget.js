@@ -35,13 +35,14 @@
     '.mail button{border:0;border-radius:8px;background:' + color + ';color:#fff;padding:0 10px;cursor:pointer}' +
     '</style>' +
     '<button class="btn" aria-label="Open chat">&#128172;</button>' +
-    '<div class="panel" role="dialog" aria-label="' + title + '"><div class="head"><span></span><button aria-label="Close">&times;</button></div>' +
+    '<div class="panel" role="dialog"><div class="head"><span></span><button aria-label="Close">&times;</button></div>' +
     '<div class="log" aria-live="polite"></div><form><input placeholder="Type your question..." maxlength="1000" aria-label="Message">' +
     '<button type="submit">Send</button></form></div>';
 
   var panel = root.querySelector(".panel"), log = root.querySelector(".log");
   var form = root.querySelector("form"), input = form.querySelector("input");
   root.querySelector(".head span").textContent = title;
+  panel.setAttribute("aria-label", title);
   root.querySelector(".btn").onclick = function () { panel.classList.toggle("open"); input.focus(); };
   root.querySelector(".head button").onclick = function () { panel.classList.remove("open"); };
 

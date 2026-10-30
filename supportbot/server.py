@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .agent import SupportAgent
 from .config import Settings
@@ -22,7 +23,11 @@ class RateLimiter:
         self.per_minute, self.hits = per_minute, defaultdict(deque)
 
     def allow(self, key: str) -> bool:
-        now, window = time.monotonic(), self.hits[key]
+        now = time.monotonic()
+        if len(self.hits) > 10_000:  # forget idle visitors so memory stays bounded
+            for k in [k for k, w in self.hits.items() if not w or now - w[-1] > 60]:
+                del self.hits[k]
+        window = self.hits[key]
         while window and now - window[0] > 60:
             window.popleft()
         if len(window) >= self.per_minute:
@@ -36,6 +41,8 @@ def create_app(settings: Settings | None = None, agent: SupportAgent | None = No
     agent = agent or SupportAgent(settings)
     limiter = RateLimiter(settings.rate_limit_per_minute)
     app = Flask(__name__, static_folder=None)
+    if settings.trusted_proxy_hops:  # behind Railway/Render/Nginx the client IP comes in X-Forwarded-For
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=settings.trusted_proxy_hops, x_proto=settings.trusted_proxy_hops)
 
     @app.after_request
     def cors(response):
@@ -49,7 +56,8 @@ def create_app(settings: Settings | None = None, agent: SupportAgent | None = No
 
     def require_admin():
         token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        if not settings.admin_token or not hmac.compare_digest(token, settings.admin_token):
+        configured = settings.admin_token
+        if not configured or configured == "change-me" or not hmac.compare_digest(token, configured):
             return jsonify(error="unauthorized"), 401
         return None
 

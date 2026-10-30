@@ -26,7 +26,8 @@ def read_document(path: Path) -> str:
     raw = path.read_text(encoding="utf-8", errors="ignore")
     if suffix in (".html", ".htm"):
         raw = re.sub(r"(?is)<(script|style).*?</\1>", " ", raw)
-        raw = re.sub(r"(?i)<h([1-3])[^>]*>(.*?)</h\1>", lambda m: "\n" + "#" * int(m.group(1)) + " " + m.group(2) + "\n", raw)
+        raw = re.sub(r"(?is)<h([1-6])[^>]*>(.*?)</h\1>",
+                     lambda m: "\n" + "#" * int(m.group(1)) + " " + " ".join(re.sub(r"<[^>]+>", " ", m.group(2)).split()) + "\n", raw)
         raw = re.sub(r"(?i)<(br|/p|/li|/div)[^>]*>", "\n", raw)
         raw = html.unescape(re.sub(r"<[^>]+>", " ", raw))
     return raw

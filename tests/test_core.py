@@ -40,3 +40,42 @@ def test_coverage_is_low_for_unrelated_questions():
     r = BM25Retriever(load_knowledge_base(KB))
     q = "Do you have a store in Paris with live music?"
     assert r.coverage(q, r.search(q)) < 0.5
+
+
+def test_singular_and_plural_forms_match():
+    from supportbot.text import tokenize
+    assert tokenize("prices") == tokenize("price") == tokenize("pricing")
+    assert tokenize("deliveries") == tokenize("delivery")
+    assert tokenize("boxes") == tokenize("box")
+    assert tokenize("ciudades") == tokenize("ciudad")
+    assert tokenize("status") == ["status"]
+
+
+def test_small_talk_detection():
+    from supportbot.text import is_small_talk
+    assert is_small_talk("Hola!") and is_small_talk("thanks a lot") and is_small_talk("Buenas tardes")
+    assert not is_small_talk("hi, do you ship to Chile?")
+
+
+def _tiny_pdf(text: str) -> bytes:
+    """Builds a minimal one-page PDF with a line of text (no extra dependencies)."""
+    stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode()
+    objs = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    out, offsets = b"%PDF-1.4\n", []
+    for i, body in enumerate(objs, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % i + body + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    return out + b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+
+
+def test_pdf_and_nested_html_headings_are_ingested(tmp_path):
+    (tmp_path / "manual.pdf").write_bytes(_tiny_pdf("Warranty lasts 12 months for all grinders."))
+    (tmp_path / "page.html").write_text("<h2>\n  <span>Opening</span> hours\n</h2><p>Mon to Fri, 9 to 18.</p>", encoding="utf-8")
+    chunks = load_knowledge_base(tmp_path)
+    assert any("Warranty lasts 12 months" in c.text and c.source == "manual.pdf" for c in chunks)
+    assert any(c.title == "Opening hours" and "Mon to Fri" in c.text for c in chunks)

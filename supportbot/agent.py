@@ -12,7 +12,7 @@ from .ingest import Chunk, load_knowledge_base
 from .llm import NO_ANSWER, ChatClient, LLMError, build_messages
 from .retriever import BM25Retriever, Hit
 from .store import Store
-from .text import split_sentences, tokenize
+from .text import is_small_talk, split_sentences, tokenize
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +22,11 @@ HANDOFF_TEXT = {
     "es": "No tengo esa información, así que le pasé tu consulta a nuestro equipo. "
           "Dejanos tu email y una persona te va a responder.",
 }
-SPANISH_HINTS = set("hola que como cuanto cuando donde envio envios precio precios tienen hacen puedo quiero gracias devolucion pedido".split())
+SMALL_TALK_TEXT = {
+    "en": "Hi! Ask me anything about {business}: orders, products, shipping, returns...",
+    "es": "¡Hola! Preguntame lo que necesites sobre {business}: pedidos, productos, envíos, devoluciones...",
+}
+SPANISH_HINTS = set("hola buenas buen gracias que como cuanto cuando donde envio envios precio precios tienen hacen puedo quiero gracias devolucion pedido".split())
 
 
 def detect_language(text: str) -> str:
@@ -35,7 +39,7 @@ class Reply:
     answer: str
     sources: list[dict] = field(default_factory=list)
     handoff: bool = False
-    mode: str = "ai"   # "ai", "demo" (extractive, no LLM) or "handoff"
+    mode: str = "ai"   # "ai", "demo" (extractive, no LLM), "handoff" or "smalltalk"
 
     def to_dict(self) -> dict:
         return {"answer": self.answer, "sources": self.sources, "handoff": self.handoff, "mode": self.mode}
@@ -61,8 +65,12 @@ class SupportAgent:
 
     def ask(self, question: str, conversation_id: str = "anonymous", history: list[dict] | None = None) -> Reply:
         history = history or []
-        query, hits, coverage = self._retrieve(question, history)
         lang = detect_language(question)
+        if is_small_talk(question):  # "hi", "thanks!": answer politely, don't alert the team
+            reply = Reply(answer=SMALL_TALK_TEXT[lang].format(business=self.settings.business_name), mode="smalltalk")
+            self.store.log_message(conversation_id, question, reply.answer, True, [])
+            return reply
+        query, hits, coverage = self._retrieve(question, history)
 
         if not hits or coverage < self.settings.min_coverage:
             reply = self._handoff(question, conversation_id, lang)
@@ -123,6 +131,9 @@ class SupportAgent:
         """Free demo mode: quote the most relevant sentences of the best source."""
         terms = set(tokenize(question))
         best = hits[0]
+        if len(best.chunk.text) <= 450:  # short sections are clearer quoted whole
+            text = " ".join(split_sentences(best.chunk.text))
+            return Reply(answer=text + " [1]", sources=[self._source(best, 1)], mode="demo")
         ranked = sorted(split_sentences(best.chunk.text), key=lambda s: len(terms & set(tokenize(s))), reverse=True)
         picked = [s for s in ranked[:2] if terms & set(tokenize(s))] or ranked[:1]
         ordered = [s for s in split_sentences(best.chunk.text) if s in picked]

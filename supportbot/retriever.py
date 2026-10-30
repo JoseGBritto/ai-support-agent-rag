@@ -41,11 +41,20 @@ class BM25Retriever:
         hits.sort(key=lambda h: h.score, reverse=True)
         return hits[:k]
 
-    @staticmethod
-    def coverage(query: str, hits: list[Hit]) -> float:
-        """Share of the question's key terms found in the retrieved sources (0..1)."""
+    def term_weight(self, term: str) -> float:
+        """IDF of a term; words the documents never mention count as the rarest (most informative)."""
+        n = len(self.docs)
+        return self.idf.get(term, math.log(1 + (n + 0.5) / 0.5))
+
+    def coverage(self, query: str, hits: list[Hit]) -> float:
+        """Share of the question's meaning found in the retrieved sources (0..1).
+
+        Each key term is weighted by how rare it is, so a common word such as "coffee" in a coffee
+        shop's docs cannot make an unrelated question ("coffee tasting events?") look answerable.
+        """
         terms = set(tokenize(query))
         if not terms:
             return 0.0
         found = set().union(*(h.matched for h in hits)) if hits else set()
-        return len(found & terms) / len(terms)
+        total = sum(self.term_weight(t) for t in terms)
+        return sum(self.term_weight(t) for t in terms & found) / total

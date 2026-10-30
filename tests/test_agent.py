@@ -120,3 +120,17 @@ def test_vague_follow_up_borrows_context(make_agent):
 def test_unknown_topic_after_a_known_one_still_hands_off(make_agent):
     history = [{"role": "user", "content": "¿Tienen descuento para cafeterías?"}, {"role": "assistant", "content": "Sí [1]."}]
     assert make_agent().ask("Do you organize coffee tasting events?", "c11", history).handoff
+
+
+def test_greetings_get_a_prompt_not_a_handoff(make_agent):
+    llm = FakeLLM()
+    agent = make_agent(llm)
+    reply = agent.ask("Hola!", "c12")
+    assert reply.mode == "smalltalk" and not reply.handoff and reply.answer.startswith("¡Hola!")
+    assert agent.ask("thanks", "c12").answer.startswith("Hi!")
+    assert llm.calls == [] and agent.http.posts == [] and agent.store.knowledge_gaps() == []
+
+
+def test_plural_question_finds_singular_text(make_agent):
+    reply = make_agent().ask("What are the wholesale prices?", "c13")
+    assert reply.sources[0]["title"] == "Wholesale > Wholesale prices"
