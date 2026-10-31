@@ -56,7 +56,21 @@ def split_sections(text: str, default_title: str) -> list[tuple[str, str]]:
 
 
 def split_long(body: str, limit: int = MAX_CHUNK_CHARS) -> list[str]:
-    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
+    paragraphs = []
+    for para in (p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()):
+        if len(para) <= limit:
+            paragraphs.append(para)
+            continue
+        # PDFs often come out as one huge paragraph per page: cut it at sentence boundaries
+        block = ""
+        for sentence in re.split(r"(?<=[.!?])\s+", para):
+            if block and len(block) + len(sentence) + 1 > limit:
+                paragraphs.append(block)
+                block = sentence
+            else:
+                block = f"{block} {sentence}".strip()
+        if block:
+            paragraphs.append(block)
     pieces, current = [], ""
     for para in paragraphs:
         if current and len(current) + len(para) + 2 > limit:

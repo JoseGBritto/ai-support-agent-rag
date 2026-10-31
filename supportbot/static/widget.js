@@ -2,13 +2,23 @@
  * Embeddable support chat. Add to any website:
  *   <script src="https://YOUR-SERVER/widget.js" data-title="Help" data-color="#6B3E26" defer></script>
  * Optional: data-greeting="Hi! Ask me about orders, shipping or returns."
+ *           data-lang="es" for a Spanish interface (answers always follow the customer's language)
  */
 (function () {
+  var STRINGS = {
+    en: { title: "Support", greeting: "Hi! How can I help you today?", placeholder: "Type your question...",
+          send: "Send", sources: "Sources", open: "Open chat", close: "Close", message: "Message",
+          error: "Connection problem. Please try again." },
+    es: { title: "Ayuda", greeting: "¡Hola! ¿En qué te puedo ayudar?", placeholder: "Escribí tu consulta...",
+          send: "Enviar", sources: "Fuentes", open: "Abrir chat", close: "Cerrar", message: "Mensaje",
+          error: "Problema de conexión. Probá de nuevo." }
+  };
   var script = document.currentScript;
   var api = new URL(script.src).origin;
+  var t = STRINGS[script.dataset.lang] || STRINGS.en;
   var color = script.dataset.color || "#2563EB";
-  var title = script.dataset.title || "Support";
-  var greeting = script.dataset.greeting || "Hi! How can I help you today?";
+  var title = script.dataset.title || t.title;
+  var greeting = script.dataset.greeting || t.greeting;
   var storeKey = "supportbot:" + api;
   var state = { id: null, history: [] };
   try { state = JSON.parse(sessionStorage.getItem(storeKey)) || state; } catch (e) {}
@@ -34,17 +44,22 @@
     '.mail{display:flex;gap:6px;margin-top:8px}.mail input{border:1px solid #D1D5DB;border-radius:8px;padding:7px;font-size:13px}' +
     '.mail button{border:0;border-radius:8px;background:' + color + ';color:#fff;padding:0 10px;cursor:pointer}' +
     '</style>' +
-    '<button class="btn" aria-label="Open chat">&#128172;</button>' +
-    '<div class="panel" role="dialog"><div class="head"><span></span><button aria-label="Close">&times;</button></div>' +
-    '<div class="log" aria-live="polite"></div><form><input placeholder="Type your question..." maxlength="1000" aria-label="Message">' +
-    '<button type="submit">Send</button></form></div>';
+    '<button class="btn">&#128172;</button>' +
+    '<div class="panel" role="dialog"><div class="head"><span></span><button class="close">&times;</button></div>' +
+    '<div class="log" aria-live="polite"></div><form><input maxlength="1000">' +
+    '<button type="submit"></button></form></div>';
 
   var panel = root.querySelector(".panel"), log = root.querySelector(".log");
   var form = root.querySelector("form"), input = form.querySelector("input");
   root.querySelector(".head span").textContent = title;
   panel.setAttribute("aria-label", title);
+  root.querySelector(".btn").setAttribute("aria-label", t.open);
+  root.querySelector(".head .close").setAttribute("aria-label", t.close);
+  input.placeholder = t.placeholder;
+  input.setAttribute("aria-label", t.message);
+  form.querySelector("button[type=submit]").textContent = t.send;
   root.querySelector(".btn").onclick = function () { panel.classList.toggle("open"); input.focus(); };
-  root.querySelector(".head button").onclick = function () { panel.classList.remove("open"); };
+  root.querySelector(".head .close").onclick = function () { panel.classList.remove("open"); };
 
   function save() { try { sessionStorage.setItem(storeKey, JSON.stringify(state)); } catch (e) {} }
 
@@ -55,7 +70,7 @@
     if (sources && sources.length) {
       var s = document.createElement("div");
       s.className = "src";
-      s.textContent = "Sources: " + sources.map(function (x) { return "[" + x.n + "] " + x.title; }).join(" · ");
+      s.textContent = t.sources + ": " + sources.map(function (x) { return "[" + x.n + "] " + x.title; }).join(" · ");
       div.appendChild(s);
     }
     log.appendChild(div);
@@ -102,6 +117,6 @@
         state.history = state.history.slice(-12);
         save();
       })
-      .catch(function () { typing.remove(); add("Connection problem. Please try again.", "bot"); });
+      .catch(function () { typing.remove(); add(t.error, "bot"); });
   };
 })();

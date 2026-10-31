@@ -55,6 +55,7 @@ def test_small_talk_detection():
     from supportbot.text import is_small_talk
     assert is_small_talk("Hola!") and is_small_talk("thanks a lot") and is_small_talk("Buenas tardes")
     assert not is_small_talk("hi, do you ship to Chile?")
+    assert not is_small_talk("how much?") and not is_small_talk("is it good?") and not is_small_talk("")
 
 
 def _tiny_pdf(text: str) -> bytes:
@@ -79,3 +80,10 @@ def test_pdf_and_nested_html_headings_are_ingested(tmp_path):
     chunks = load_knowledge_base(tmp_path)
     assert any("Warranty lasts 12 months" in c.text and c.source == "manual.pdf" for c in chunks)
     assert any(c.title == "Opening hours" and "Mon to Fri" in c.text for c in chunks)
+
+
+def test_one_huge_paragraph_is_split_at_sentences():
+    body = " ".join(f"Sentence number {i} talks about shipping rules." for i in range(60))
+    pieces = split_long(body, limit=400)
+    assert len(pieces) > 5 and all(len(p) <= 400 for p in pieces)
+    assert all(p.endswith(".") for p in pieces)

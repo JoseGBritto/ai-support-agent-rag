@@ -127,8 +127,23 @@ def test_greetings_get_a_prompt_not_a_handoff(make_agent):
     agent = make_agent(llm)
     reply = agent.ask("Hola!", "c12")
     assert reply.mode == "smalltalk" and not reply.handoff and reply.answer.startswith("¡Hola!")
-    assert agent.ask("thanks", "c12").answer.startswith("Hi!")
+    assert agent.ask("thanks a lot!", "c12").answer.startswith("You're welcome")
+    assert agent.ask("chau", "c12").answer.startswith("Gracias por escribirle")
     assert llm.calls == [] and agent.http.posts == [] and agent.store.knowledge_gaps() == []
+    assert agent.store.stats()["questions"] == 0  # small talk doesn't inflate the answer rate
+
+
+def test_short_real_questions_are_not_small_talk(make_agent):
+    agent = make_agent()
+    for question in ("how much?", "Is it good?", "no"):
+        assert agent.ask(question, "c14").mode != "smalltalk"
+
+
+def test_handoff_webhook_works_for_slack_and_discord(make_agent):
+    agent = make_agent()
+    agent.ask("Do you have a store in Paris with live music?", "c15")
+    payload = agent.http.posts[0][1]
+    assert payload["text"] == payload["content"] and "Paris" in payload["text"]
 
 
 def test_plural_question_finds_singular_text(make_agent):

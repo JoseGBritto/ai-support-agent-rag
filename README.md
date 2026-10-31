@@ -20,13 +20,13 @@ A drop-in customer-support chatbot for small businesses and SaaS products. It re
 | **Human handoff** | Questions the documents don't cover skip the LLM entirely (coverage is weighted by how rare each word is, so common words can't fake a match); the customer can leave an email and the team is alerted through a webhook (Slack, n8n, Make, Google Chat, Discord). |
 | **Any LLM provider** | Works with any OpenAI-compatible API: OpenAI, OpenRouter, Groq, Gemini, or a local model with Ollama. |
 | **Free demo mode** | Without an API key it answers by quoting the best source, so a client can try it at zero cost. |
-| **Bilingual** | Accent- and plural-insensitive search; AI answers, greetings and handoff messages follow the customer's language (English/Spanish out of the box). |
+| **Bilingual** | Replies follow the customer's language (English/Spanish out of the box). Search is keyword-based, so keep the documents in every language customers write in; the demo knowledge base has both. Switching the retriever to multilingual embeddings removes that need. |
 | **Many formats** | `.md`, `.txt`, `.html` and `.pdf`, split by headings into citable sections. |
-| **Embeddable widget** | Vanilla JS, Shadow DOM (never clashes with the site's CSS), mobile friendly, keeps the conversation during the visit. |
-| **Small talk** | "Hi", "thanks" or "hola" get a friendly prompt instead of alerting the team. |
+| **Embeddable widget** | Vanilla JS, Shadow DOM (never clashes with the site's CSS), mobile friendly, keeps the conversation during the visit, English or Spanish interface (`data-lang`). |
+| **Small talk** | Greetings, thanks and goodbyes ("hi", "thanks!", "chau") get a polite reply instead of alerting the team, and don't count as questions in the stats. |
 | **Admin API** | Usage stats, answer rate, knowledge gaps and re-indexing, protected by a token (locked until the placeholder token is changed). |
 | **Production basics** | Per-visitor rate limiting (proxy-aware), input limits, CORS allow-list, timeouts and fallbacks, SQLite logging, Dockerfile. |
-| **Tested** | 33 pytest tests (ingestion incl. PDF, retrieval, agent logic, API) and GitHub Actions CI. |
+| **Tested** | 36 pytest tests (ingestion incl. PDF, retrieval, agent logic, API) and GitHub Actions CI. |
 
 ## How it works
 
@@ -49,7 +49,7 @@ BM25 keyword search keeps hosting cheap and needs no vector database for knowled
 ```bash
 python -m venv .venv
 # Windows:  .venv\Scripts\activate      macOS/Linux:  source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # app + test tools
 cp .env.example .env          # Windows: copy .env.example .env
 python -m supportbot serve
 ```
@@ -82,6 +82,10 @@ pytest -q                                                # run the tests
         data-title="Help" data-color="#6B3E26"
         data-greeting="Hi! Ask me about orders, shipping or returns." defer></script>
 ```
+
+For a Spanish interface add `data-lang="es"`.
+
+The Docker image runs one worker process with threads, so the index, the rate limits and admin re-indexing stay consistent, and `.dockerignore` keeps `.env` and the database out of the image.
 
 ## API
 

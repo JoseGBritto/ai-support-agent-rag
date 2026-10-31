@@ -14,11 +14,12 @@ donde quien es son esta estan este esto ese eso se su sus mi mis tu tus le les l
 hay tiene tienen tengo puedo pueden puede hacer quiero necesito favor hola gracias si no mas
 """.split())
 
-# Courtesy words: a message made only of these is small talk, not a question for the docs
-SMALL_TALK = set("""
-hi hello hey hiya thanks thank thx ok okay cool great bye goodbye morning afternoon evening good lot much very so
-buenas buenos buen dia tardes noches chau chao adios genial perfecto dale listo ok
-""".split())
+# Courtesy words. A message counts as small talk only if it contains one of these and every other
+# word is filler, so "how much?" or "is it good?" are still treated as real questions.
+GREETING_WORDS = set("hi hello hey hiya morning afternoon evening hola buenas buenos buen dia tardes noches".split())
+THANKS_WORDS = set("thanks thank thx gracias".split())
+BYE_WORDS = set("bye goodbye chau chao adios".split())
+FILLER_WORDS = set("good a lot very much so you ok okay cool great perfect genial perfecto dale listo muchas muchisimas mil and y".split())
 
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -58,7 +59,18 @@ def split_sentences(text: str) -> list[str]:
     return [p.strip(" -*#\t") for p in parts if len(p.strip(" -*#\t")) > 2]
 
 
-def is_small_talk(text: str) -> bool:
-    """True for greetings and thanks ("hi", "hola!", "thanks a lot") that carry no question."""
+def small_talk_kind(text: str) -> str | None:
+    """"greeting", "thanks" or "bye" for courtesy-only messages ("hola!", "thanks a lot"); otherwise None."""
     words = _WORD.findall(strip_accents(text.lower()))
-    return all(w in STOPWORDS or w in SMALL_TALK for w in words)
+    courtesy = GREETING_WORDS | THANKS_WORDS | BYE_WORDS
+    if not words or not any(w in courtesy for w in words) or not all(w in courtesy | FILLER_WORDS for w in words):
+        return None
+    if any(w in THANKS_WORDS for w in words):
+        return "thanks"
+    if any(w in BYE_WORDS for w in words):
+        return "bye"
+    return "greeting"
+
+
+def is_small_talk(text: str) -> bool:
+    return small_talk_kind(text) is not None

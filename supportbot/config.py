@@ -18,7 +18,7 @@ def load_dotenv(path: Path = Path(".env")) -> None:
 
 @dataclass
 class Settings:
-    business_name: str = "Our company"
+    business_name: str = "Andes Coffee Co."
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
     llm_model: str = "gpt-4o-mini"

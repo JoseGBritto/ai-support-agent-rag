@@ -4,4 +4,5 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 ENV PORT=8000
-CMD gunicorn "supportbot.server:create_app()" --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+# One worker keeps the index, rate limiter and admin re-index in a single process; threads handle concurrency
+CMD gunicorn "supportbot.server:create_app()" --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60

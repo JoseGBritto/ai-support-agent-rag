@@ -12,7 +12,7 @@ from .ingest import Chunk, load_knowledge_base
 from .llm import NO_ANSWER, ChatClient, LLMError, build_messages
 from .retriever import BM25Retriever, Hit
 from .store import Store
-from .text import is_small_talk, split_sentences, tokenize
+from .text import small_talk_kind, split_sentences, tokenize
 
 log = logging.getLogger(__name__)
 
@@ -23,10 +23,14 @@ HANDOFF_TEXT = {
           "Dejanos tu email y una persona te va a responder.",
 }
 SMALL_TALK_TEXT = {
-    "en": "Hi! Ask me anything about {business}: orders, products, shipping, returns...",
-    "es": "¡Hola! Preguntame lo que necesites sobre {business}: pedidos, productos, envíos, devoluciones...",
+    ("greeting", "en"): "Hi! Ask me anything about {business}: orders, products, shipping, returns...",
+    ("greeting", "es"): "¡Hola! Preguntame lo que necesites sobre {business}: pedidos, productos, envíos, devoluciones...",
+    ("thanks", "en"): "You're welcome! Anything else I can help you with?",
+    ("thanks", "es"): "¡De nada! ¿Te puedo ayudar con algo más?",
+    ("bye", "en"): "Thanks for writing to {business}. Have a great day!",
+    ("bye", "es"): "Gracias por escribirle a {business}. ¡Que tengas un buen día!",
 }
-SPANISH_HINTS = set("hola buenas buen gracias que como cuanto cuando donde envio envios precio precios tienen hacen puedo quiero gracias devolucion pedido".split())
+SPANISH_HINTS = set("hola buenas buen gracias chau chao adios dale listo genial que como cuanto cuando donde envio envios precio precios tienen hacen puedo quiero gracias devolucion pedido".split())
 
 
 def detect_language(text: str) -> str:
@@ -66,10 +70,9 @@ class SupportAgent:
     def ask(self, question: str, conversation_id: str = "anonymous", history: list[dict] | None = None) -> Reply:
         history = history or []
         lang = detect_language(question)
-        if is_small_talk(question):  # "hi", "thanks!": answer politely, don't alert the team
-            reply = Reply(answer=SMALL_TALK_TEXT[lang].format(business=self.settings.business_name), mode="smalltalk")
-            self.store.log_message(conversation_id, question, reply.answer, True, [])
-            return reply
+        kind = small_talk_kind(question)
+        if kind:  # "hi", "thanks!": answer politely; not a question, so not logged or escalated
+            return Reply(answer=SMALL_TALK_TEXT[(kind, lang)].format(business=self.settings.business_name), mode="smalltalk")
         query, hits, coverage = self._retrieve(question, history)
 
         if not hits or coverage < self.settings.min_coverage:
@@ -148,8 +151,10 @@ class SupportAgent:
         url = self.settings.handoff_webhook_url
         if not url:
             return
-        try:  # {"text": ...} is accepted by Slack, Mattermost, n8n, Make and Google Chat webhooks
-            self.http.post(url, json={"text": f"[{self.settings.business_name}] {text}"}, timeout=5)
+        try:
+            message = f"[{self.settings.business_name}] {text}"
+            # "text" for Slack, Mattermost, Google Chat, n8n and Make; "content" for Discord
+            self.http.post(url, json={"text": message, "content": message}, timeout=5)
         except requests.RequestException as exc:
             log.warning("Handoff webhook failed: %s", exc)
 
